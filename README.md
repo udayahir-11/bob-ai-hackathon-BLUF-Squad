@@ -75,7 +75,7 @@
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/udayambaliya04/ibm-bob.git
+git clone https://github.com/udayahir-11/bob-ai-hackathon-BLUF-Squad
 cd ibm-bob
 
 # 2. Compile
