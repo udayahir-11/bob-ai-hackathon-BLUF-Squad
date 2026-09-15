@@ -8,36 +8,34 @@
 
 | Field | Value |
 |---|---|
-| **Team Name** | [Your Team Name] |
-| **Track** | [AI / DevOps / Sustainability / Open] |
-| **Team Lead** | [Name] — [email@ibm.com] |
-| **Members** | [Name 1], [Name 2], [Name 3] |
+| **BLUF Squad** | 
+| **AI** | 
+| **Ambaliya Uday - 25bsit001@charusat.edu.in** |
+| **Bhavish Nakrani, Krish Dodia, Krisha Patel** | 
 
 ---
 
 ## 🎯 Problem Statement
 
-> In 2–3 sentences: What problem does your project solve? Who experiences this problem?
+> Defence analysts are overwhelmed by thousands of daily alerts from disparate sources (SIEM, satellite, cyber sensors, intel reports), making it impossible to manually distinguish genuine threats from false positives while producing timely, structured reports for commanders.
 
-[Describe the real-world problem your project addresses. Be specific about who the user is and what pain point they face.]
 
 ---
 
 ## 💡 Solution
 
-> In 2–3 sentences: What did you build? How does it solve the problem above?
+> An AI-driven assistant that correlates multi-source alerts, filters false positives, maps attacker techniques to MITRE ATT&CK, and auto-generates prioritised BLUF summaries — cutting analyst overload and enabling commanders to act within minutes.
 
-[Describe your solution clearly. Explain the core mechanism — what makes it work.]
 
 ---
 
 ## ✨ Key Features
 
-- **Feature 1:** [Brief description — e.g., "Real-time anomaly detection using watsonx.ai"]
-- **Feature 2:** [Brief description]
-- **Feature 3:** [Brief description]
-- **Feature 4:** [Optional]
-- **Feature 5:** [Optional]
+- **Multi-Source Alert Correlation - Ingests and correlates alerts from SIEM, satellite feeds, cyber sensors, and intel reports into unified, de-duplicated incidents.** 
+- **AI-Powered False Positive Filtering — Uses ML classification to score and suppress low-confidence noise, surfacing only genuine threats.** 
+- **MITRE ATT&CK Technique Mapping — Automatically tags correlated incidents with adversary tactics and techniques for standardized threat context.** 
+- **Automated BLUF Report Generation — Produces prioritised, commander-ready summaries (Bottom Line Up Front) enabling rapid decision-making.**
+
 
 ---
 
