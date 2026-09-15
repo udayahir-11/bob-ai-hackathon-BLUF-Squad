@@ -1,0 +1,32 @@
+# Threat Intelligence Feed — Multi-Source Format
+# Format: id,srcIP,dstIP,protocol,score,timestamp,sourceType,description
+# Source Types: SIEM | SATELLITE | CYBER_SENSOR | INTEL_REPORT
+# Blank lines and lines beginning with # are ignored by the parser.
+
+# ── SIEM Alerts ──────────────────────────────────────────────────────────────
+ALT-001,192.168.1.50,10.0.0.5,TCP,85,2025-07-15T08:14:22Z,SIEM,Internal host flagged for lateral movement via RDP — internal origin filtered
+ALT-002,45.33.22.11,203.0.113.10,UDP,20,2025-07-15T08:17:05Z,SIEM,Low-severity UDP probe — likely multicast noise
+ALT-003,185.15.59.222,203.0.113.10,TCP,99,2025-07-15T08:19:41Z,SIEM,Repeated C2 beacon traffic detected on port 443 — high-frequency periodic pattern
+ALT-004,127.0.0.1,10.0.0.1,TCP,100,2025-07-15T08:20:00Z,SIEM,Loopback traffic flagged by misconfigured rule — false positive
+ALT-005,8.8.8.8,198.51.100.5,UDP,90,2025-07-15T08:21:30Z,SIEM,DNS resolver large query volume — possible DNS tunnelling exfiltration
+
+# ── Cyber Sensor Alerts ───────────────────────────────────────────────────────
+ALT-006,112.213.89.44,198.51.100.22,TCP,92,2025-07-15T09:03:11Z,CYBER_SENSOR,Automated port scan sweep targeting SSH and RDP ports — active recon
+ALT-007,31.184.196.5,203.0.113.55,TCP,88,2025-07-15T09:15:44Z,CYBER_SENSOR,Brute force login attempts against admin portal — 4200 auth failures in 10 minutes
+ALT-008,80.82.77.10,198.51.100.30,TCP,76,2025-07-15T09:22:17Z,CYBER_SENSOR,Exploit attempt detected on Apache Struts CVE-2021-31805 — shellcode injection payload
+ALT-009,10.0.5.22,10.0.5.100,TCP,60,2025-07-15T09:28:59Z,CYBER_SENSOR,SMB lateral movement detected — internal pivot from compromised workstation
+ALT-010,45.155.205.33,203.0.113.10,ICMP,18,2025-07-15T09:31:02Z,CYBER_SENSOR,ICMP ping sweep — low severity, likely reconnaissance pre-scan noise
+
+# ── Intel Report Alerts ───────────────────────────────────────────────────────
+ALT-011,91.108.4.200,198.51.100.44,TCP,95,2025-07-15T10:00:00Z,INTEL_REPORT,APT29 attributed C2 infrastructure — Cozy Bear TTP match — beacon + data exfil pattern
+ALT-012,31.184.196.8,203.0.113.20,TCP,91,2025-07-15T10:05:30Z,INTEL_REPORT,Spear phishing campaign targeting defence sector — malicious email payload confirmed
+ALT-013,179.60.147.12,198.51.100.60,TCP,83,2025-07-15T10:11:18Z,INTEL_REPORT,Lateral movement activity using valid admin credentials — pass-the-hash technique
+ALT-014,66.240.219.7,198.51.100.80,TCP,55,2025-07-15T10:18:45Z,INTEL_REPORT,Vulnerability scan from known threat actor IP range — T1595 active scanning IOC match
+ALT-015,94.102.49.23,203.0.113.33,UDP,44,2025-07-15T10:25:10Z,INTEL_REPORT,Data exfiltration via DNS — large TXT record queries consistent with DNS tunnel
+
+# ── Satellite Feed Alerts ─────────────────────────────────────────────────────
+ALT-016,185.15.59.101,198.51.100.90,TCP,97,2025-07-15T11:00:00Z,SATELLITE,Nation-state attributed DDoS command issued — flood traffic targeting critical infrastructure
+ALT-017,112.213.89.88,203.0.113.100,TCP,86,2025-07-15T11:07:22Z,SATELLITE,Malware C2 callback — Cobalt Strike beacon identified by satellite sensor correlation
+ALT-018,104.21.44.5,198.51.100.110,TCP,38,2025-07-15T11:14:33Z,SATELLITE,Anomalous outbound transfer — large upload to known cloud drop zone
+ALT-019,192.168.50.12,10.10.0.1,UDP,15,2025-07-15T11:19:45Z,SATELLITE,Internal UDP heartbeat noise from VoIP system — false positive confirmed
+ALT-020,45.33.22.99,203.0.113.77,TCP,72,2025-07-15T11:25:00Z,SATELLITE,Credential stuffing attack against authentication endpoint — password spray pattern

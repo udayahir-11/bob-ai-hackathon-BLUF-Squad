@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Threat Intelligence Commander Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    a { color: #58a6ff; text-decoration: none; }
+
+    /* ── Top Bar ── */
+    .topbar {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f0f6fc;
+      letter-spacing: 0.3px;
+    }
+    .topbar-meta {
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .live-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #3fb950;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Layout ── */
+    .main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    /* ── BLUF Card ── */
+    .bluf-card {
+      background: #0f1923;
+      border: 1px solid #1e4976;
+      border-left: 4px solid #388bfd;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+    .bluf-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #388bfd;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    .bluf-card p { color: #c9d1d9; margin-bottom: 8px; }
+    .bluf-card p:last-child { margin-bottom: 0; }
+    .bluf-label { color: #8b949e; font-weight: 600; margin-right: 4px; }
+
+    /* ── Stats Grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-card .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-card .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #8b949e;
+    }
+    .stat-critical .stat-value { color: #f85149; }
+    .stat-high     .stat-value { color: #d29922; }
+    .stat-medium   .stat-value { color: #e3b341; }
+    .stat-low      .stat-value { color: #3fb950; }
+    .stat-total    .stat-value { color: #58a6ff; }
+    .stat-fp       .stat-value { color: #8b949e; }
+
+    /* ── Section Header ── */
+    .section-header {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #8b949e;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+    }
+
+    /* ── Priority Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .badge-critical { background: #3d1a1a; color: #f85149; border: 1px solid #f85149; }
+    .badge-high     { background: #2d2000; color: #d29922; border: 1px solid #d29922; }
+    .badge-medium   { background: #2d2400; color: #e3b341; border: 1px solid #e3b341; }
+    .badge-low      { background: #0d2116; color: #3fb950; border: 1px solid #3fb950; }
+    .badge-filtered { background: #161b22; color: #8b949e; border: 1px solid #30363d; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #161b22; }
+    th {
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #8b949e;
+      border-bottom: 1px solid #30363d;
+      white-space: nowrap;
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #21262d;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr.row-critical { background: #1a0d0d; }
+    tr.row-high     { background: #1a1200; }
+    tr.row-filtered { opacity: 0.55; }
+    tr:hover td { background: rgba(56,139,253,0.05); }
+    .ip-code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      color: #79c0ff;
+    }
+    .mitre-id {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      color: #d2a8ff;
+    }
+    .mitre-name { font-size: 12px; color: #c9d1d9; }
+    .tactic-tag {
+      display: inline-block;
+      background: #1f2d3d;
+      color: #79c0ff;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-size: 11px;
+    }
+    .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .score-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: #21262d;
+      flex: 1;
+      overflow: hidden;
+    }
+    .score-fill { height: 100%; border-radius: 2px; }
+    .geo-tag { font-size: 11px; color: #8b949e; }
+    .confidence-val { font-size: 12px; color: #3fb950; font-weight: 600; }
+    .grp-badge {
+      display: inline-block;
+      background: #1f2d3d;
+      color: #58a6ff;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-size: 11px;
+      font-family: monospace;
+    }
+    .bluf-cell { font-size: 12px; color: #8b949e; max-width: 260px; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      padding: 24px 0 12px;
+      font-size: 12px;
+      color: #484f58;
+      border-top: 1px solid #21262d;
+      margin-top: 32px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>&#128737; Threat Intelligence Correlation &amp; Alert Prioritisation Assistant</h1>
+  <span class="topbar-meta"><span class="live-dot"></span>Live Feed Processed</span>
+</div>
+
+<div class="main">
+
+  <!-- BLUF Summary Card -->
+  <div class="bluf-card">
+    <div class="bluf-title">&#9632; BLUF — Bottom Line Up Front / Commander Summary</div>
+    <p><span class="bluf-label">SITUATION:</span>20 alerts ingested from multi-source feeds. 6 filtered as noise. <strong style="color:#f0f6fc">14 genuine threats</strong> confirmed across 11 adversary campaign group(s).</p>
+    <p><span class="bluf-label">PRIORITY BREAKDOWN:</span><span style="color:#f85149">&#9632; 8 CRITICAL</span> &nbsp;<span style="color:#d29922">&#9632; 3 HIGH</span> &nbsp;<span style="color:#e3b341">&#9632; 3 MEDIUM</span> &nbsp;<span style="color:#3fb950">&#9632; 0 LOW</span></p>
+    <p><span class="bluf-label">COMMANDER ACTION:</span><strong style="color:#f85149">IMMEDIATE RESPONSE REQUIRED — 8 CRITICAL alert(s) active.</strong> 3 HIGH priority alert(s) require analyst attention within 1 hour. 3 MEDIUM alert(s) scheduled for investigation today. </p>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card stat-total"><div class="stat-value">20</div><div class="stat-label">Total Ingested</div></div>
+    <div class="stat-card stat-critical"><div class="stat-value">8</div><div class="stat-label">Critical</div></div>
+    <div class="stat-card stat-high"><div class="stat-value">3</div><div class="stat-label">High</div></div>
+    <div class="stat-card stat-medium"><div class="stat-value">3</div><div class="stat-label">Medium</div></div>
+    <div class="stat-card stat-low"><div class="stat-value">0</div><div class="stat-label">Low</div></div>
+    <div class="stat-card stat-fp"><div class="stat-value">6</div><div class="stat-label">Filtered / FP</div></div>
+    <div class="stat-card stat-total"><div class="stat-value">11</div><div class="stat-label">Campaign Groups</div></div>
+  </div>
+
+  <div class="section-header">Prioritised Alert Feed</div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>#</th><th>Alert ID</th><th>Priority</th><th>Score</th><th>Source IP</th><th>Destination</th><th>Protocol</th><th>Source Type</th><th>MITRE Technique</th><th>Tactic</th><th>Category</th><th>Confidence</th><th>Campaign</th><th>BLUF Summary</th>
+    </tr></thead>
+    <tbody>
+      <tr class="row-critical">
+        <td style="color:#484f58;font-size:11px">1</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-003</td>
+        <td><span class="badge badge-critical">CRITICAL</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">99</span>
+            <div class="score-bar"><div class="score-fill" style="width:99%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">185.15.59.222</span><br><span class="geo-tag">Russia (RU)</span></td>
+        <td><span class="ip-code">203.0.113.10</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">SIEM</td>
+        <td>
+          <span class="mitre-id">T1071</span><br>
+          <span class="mitre-name">Application Layer Protocol</span>
+        </td>
+        <td><span class="tactic-tag">Command and Control</span></td>
+        <td style="font-size:12px">Command & Control</td>
+        <td><span class="confidence-val">100%</span></td>
+        <td><span class="grp-badge">G1</span></td>
+        <td class="bluf-cell">[CRITICAL] Command & Control activity from 185.15.59.222 (Russia (RU)) via TCP. MITRE T1071 (Application Layer Protocol). Confidence: 100%.</td>
+      </tr>
+      <tr class="row-critical">
+        <td style="color:#484f58;font-size:11px">2</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-016</td>
+        <td><span class="badge badge-critical">CRITICAL</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">97</span>
+            <div class="score-bar"><div class="score-fill" style="width:97%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">185.15.59.101</span><br><span class="geo-tag">Russia (RU)</span></td>
+        <td><span class="ip-code">198.51.100.90</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">SATELLITE</td>
+        <td>
+          <span class="mitre-id">T1498</span><br>
+          <span class="mitre-name">Network Denial of Service</span>
+        </td>
+        <td><span class="tactic-tag">Impact</span></td>
+        <td style="font-size:12px">Impact</td>
+        <td><span class="confidence-val">100%</span></td>
+        <td><span class="grp-badge">G1</span></td>
+        <td class="bluf-cell">[CRITICAL] Impact activity from 185.15.59.101 (Russia (RU)) via TCP. MITRE T1498 (Network Denial of Service). Confidence: 100%.</td>
+      </tr>
+      <tr class="row-critical">
+        <td style="color:#484f58;font-size:11px">3</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-011</td>
+        <td><span class="badge badge-critical">CRITICAL</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">95</span>
+            <div class="score-bar"><div class="score-fill" style="width:95%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">91.108.4.200</span><br><span class="geo-tag">Russia (RU)</span></td>
+        <td><span class="ip-code">198.51.100.44</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">INTEL_REPORT</td>
+        <td>
+          <span class="mitre-id">T1071</span><br>
+          <span class="mitre-name">Application Layer Protocol</span>
+        </td>
+        <td><span class="tactic-tag">Command and Control</span></td>
+        <td style="font-size:12px">Command & Control</td>
+        <td><span class="confidence-val">100%</span></td>
+        <td><span class="grp-badge">G6</span></td>
+        <td class="bluf-cell">[CRITICAL] Command & Control activity from 91.108.4.200 (Russia (RU)) via TCP. MITRE T1071 (Application Layer Protocol). Confidence: 100%.</td>
+      </tr>
+      <tr class="row-critical">
+        <td style="color:#484f58;font-size:11px">4</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-006</td>
+        <td><span class="badge badge-critical">CRITICAL</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">92</span>
+            <div class="score-bar"><div class="score-fill" style="width:92%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">112.213.89.44</span><br><span class="geo-tag">China (CN)</span></td>
+        <td><span class="ip-code">198.51.100.22</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">CYBER_SENSOR</td>
+        <td>
+          <span class="mitre-id">T1046</span><br>
+          <span class="mitre-name">Network Service Discovery</span>
+        </td>
+        <td><span class="tactic-tag">Reconnaissance</span></td>
+        <td style="font-size:12px">Reconnaissance</td>
+        <td><span class="confidence-val">92%</span></td>
+        <td><span class="grp-badge">G3</span></td>
+        <td class="bluf-cell">[CRITICAL] Reconnaissance activity from 112.213.89.44 (China (CN)) via TCP. MITRE T1046 (Network Service Discovery). Confidence: 92%.</td>
+      </tr>
+      <tr class="row-critical">
+        <td style="color:#484f58;font-size:11px">5</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-012</td>
+        <td><span class="badge badge-critical">CRITICAL</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">91</span>
+            <div class="score-bar"><div class="score-fill" style="width:91%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">31.184.196.8</span><br><span class="geo-tag">Russia (RU)</span></td>
+        <td><span class="ip-code">203.0.113.20</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">INTEL_REPORT</td>
+        <td>
+          <span class="mitre-id">T1566</span><br>
+          <span class="mitre-name">Phishing</span>
+        </td>
+        <td><span class="tactic-tag">Initial Access</span></td>
+        <td style="font-size:12px">Initial Access</td>
+        <td><span class="confidence-val">100%</span></td>
+        <td><span class="grp-badge">G4</span></td>
+        <td class="bluf-cell">[CRITICAL] Initial Access activity from 31.184.196.8 (Russia (RU)) via TCP. MITRE T1566 (Phishing). Confidence: 100%.</td>
+      </tr>
+      <tr class="row-critical">
+        <td style="color:#484f58;font-size:11px">6</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-005</td>
+        <td><span class="badge badge-critical">CRITICAL</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">90</span>
+            <div class="score-bar"><div class="score-fill" style="width:90%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">8.8.8.8</span><br><span class="geo-tag">United States (US)</span></td>
+        <td><span class="ip-code">198.51.100.5</span></td>
+        <td style="font-family:monospace;font-size:12px">UDP</td>
+        <td style="font-size:12px;color:#8b949e">SIEM</td>
+        <td>
+          <span class="mitre-id">T1041</span><br>
+          <span class="mitre-name">Exfiltration Over C2 Channel</span>
+        </td>
+        <td><span class="tactic-tag">Exfiltration</span></td>
+        <td style="font-size:12px">Exfiltration</td>
+        <td><span class="confidence-val">100%</span></td>
+        <td><span class="grp-badge">G2</span></td>
+        <td class="bluf-cell">[CRITICAL] Exfiltration activity from 8.8.8.8 (United States (US)) via UDP. MITRE T1041 (Exfiltration Over C2 Channel). Confidence: 100%.</td>
+      </tr>
+      <tr class="row-critical">
+        <td style="color:#484f58;font-size:11px">7</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-007</td>
+        <td><span class="badge badge-critical">CRITICAL</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">88</span>
+            <div class="score-bar"><div class="score-fill" style="width:88%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">31.184.196.5</span><br><span class="geo-tag">Russia (RU)</span></td>
+        <td><span class="ip-code">203.0.113.55</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">CYBER_SENSOR</td>
+        <td>
+          <span class="mitre-id">T1110</span><br>
+          <span class="mitre-name">Brute Force</span>
+        </td>
+        <td><span class="tactic-tag">Credential Access</span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">98%</span></td>
+        <td><span class="grp-badge">G4</span></td>
+        <td class="bluf-cell">[CRITICAL] Unknown activity from 31.184.196.5 (Russia (RU)) via TCP. MITRE T1110 (Brute Force). Confidence: 98%.</td>
+      </tr>
+      <tr class="row-critical">
+        <td style="color:#484f58;font-size:11px">8</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-017</td>
+        <td><span class="badge badge-critical">CRITICAL</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">86</span>
+            <div class="score-bar"><div class="score-fill" style="width:86%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">112.213.89.88</span><br><span class="geo-tag">China (CN)</span></td>
+        <td><span class="ip-code">203.0.113.100</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">SATELLITE</td>
+        <td>
+          <span class="mitre-id">T1071</span><br>
+          <span class="mitre-name">Application Layer Protocol</span>
+        </td>
+        <td><span class="tactic-tag">Command and Control</span></td>
+        <td style="font-size:12px">Command & Control</td>
+        <td><span class="confidence-val">100%</span></td>
+        <td><span class="grp-badge">G3</span></td>
+        <td class="bluf-cell">[CRITICAL] Command & Control activity from 112.213.89.88 (China (CN)) via TCP. MITRE T1071 (Application Layer Protocol). Confidence: 100%.</td>
+      </tr>
+      <tr class="row-high">
+        <td style="color:#484f58;font-size:11px">9</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-013</td>
+        <td><span class="badge badge-high">HIGH</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#d29922;min-width:26px">83</span>
+            <div class="score-bar"><div class="score-fill" style="width:83%;background:#d29922"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">179.60.147.12</span><br><span class="geo-tag">Venezuela (VE)</span></td>
+        <td><span class="ip-code">198.51.100.60</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">INTEL_REPORT</td>
+        <td>
+          <span class="mitre-id">T1021</span><br>
+          <span class="mitre-name">Remote Services</span>
+        </td>
+        <td><span class="tactic-tag">Lateral Movement</span></td>
+        <td style="font-size:12px">Lateral Movement</td>
+        <td><span class="confidence-val">100%</span></td>
+        <td><span class="grp-badge">G7</span></td>
+        <td class="bluf-cell">[HIGH] Lateral Movement activity from 179.60.147.12 (Venezuela (VE)) via TCP. MITRE T1021 (Remote Services). Confidence: 100%.</td>
+      </tr>
+      <tr class="row-high">
+        <td style="color:#484f58;font-size:11px">10</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-008</td>
+        <td><span class="badge badge-high">HIGH</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#d29922;min-width:26px">76</span>
+            <div class="score-bar"><div class="score-fill" style="width:76%;background:#d29922"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">80.82.77.10</span><br><span class="geo-tag">Netherlands (NL)</span></td>
+        <td><span class="ip-code">198.51.100.30</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">CYBER_SENSOR</td>
+        <td>
+          <span class="mitre-id">T1203</span><br>
+          <span class="mitre-name">Exploitation for Client Execution</span>
+        </td>
+        <td><span class="tactic-tag">Execution</span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">76%</span></td>
+        <td><span class="grp-badge">G5</span></td>
+        <td class="bluf-cell">[HIGH] Unknown activity from 80.82.77.10 (Netherlands (NL)) via TCP. MITRE T1203 (Exploitation for Client Execution). Confidence: 76%.</td>
+      </tr>
+      <tr class="row-high">
+        <td style="color:#484f58;font-size:11px">11</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-020</td>
+        <td><span class="badge badge-high">HIGH</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#d29922;min-width:26px">72</span>
+            <div class="score-bar"><div class="score-fill" style="width:72%;background:#d29922"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">45.33.22.99</span><br><span class="geo-tag">United States (US)</span></td>
+        <td><span class="ip-code">203.0.113.77</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">SATELLITE</td>
+        <td>
+          <span class="mitre-id">T1110</span><br>
+          <span class="mitre-name">Brute Force</span>
+        </td>
+        <td><span class="tactic-tag">Credential Access</span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">87%</span></td>
+        <td><span class="grp-badge">G11</span></td>
+        <td class="bluf-cell">[HIGH] Unknown activity from 45.33.22.99 (United States (US)) via TCP. MITRE T1110 (Brute Force). Confidence: 87%.</td>
+      </tr>
+      <tr>
+        <td style="color:#484f58;font-size:11px">12</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-014</td>
+        <td><span class="badge badge-medium">MEDIUM</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#e3b341;min-width:26px">55</span>
+            <div class="score-bar"><div class="score-fill" style="width:55%;background:#e3b341"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">66.240.219.7</span><br><span class="geo-tag">United States (US)</span></td>
+        <td><span class="ip-code">198.51.100.80</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">INTEL_REPORT</td>
+        <td>
+          <span class="mitre-id">T1046</span><br>
+          <span class="mitre-name">Network Service Discovery</span>
+        </td>
+        <td><span class="tactic-tag">Reconnaissance</span></td>
+        <td style="font-size:12px">Reconnaissance</td>
+        <td><span class="confidence-val">70%</span></td>
+        <td><span class="grp-badge">G8</span></td>
+        <td class="bluf-cell">[MEDIUM] Reconnaissance activity from 66.240.219.7 (United States (US)) via TCP. MITRE T1046 (Network Service Discovery). Confidence: 70%.</td>
+      </tr>
+      <tr>
+        <td style="color:#484f58;font-size:11px">13</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-015</td>
+        <td><span class="badge badge-medium">MEDIUM</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#e3b341;min-width:26px">44</span>
+            <div class="score-bar"><div class="score-fill" style="width:44%;background:#e3b341"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">94.102.49.23</span><br><span class="geo-tag">Netherlands (NL)</span></td>
+        <td><span class="ip-code">203.0.113.33</span></td>
+        <td style="font-family:monospace;font-size:12px">UDP</td>
+        <td style="font-size:12px;color:#8b949e">INTEL_REPORT</td>
+        <td>
+          <span class="mitre-id">T1041</span><br>
+          <span class="mitre-name">Exfiltration Over C2 Channel</span>
+        </td>
+        <td><span class="tactic-tag">Exfiltration</span></td>
+        <td style="font-size:12px">Exfiltration</td>
+        <td><span class="confidence-val">69%</span></td>
+        <td><span class="grp-badge">G9</span></td>
+        <td class="bluf-cell">[MEDIUM] Exfiltration activity from 94.102.49.23 (Netherlands (NL)) via UDP. MITRE T1041 (Exfiltration Over C2 Channel). Confidence: 69%.</td>
+      </tr>
+      <tr>
+        <td style="color:#484f58;font-size:11px">14</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-018</td>
+        <td><span class="badge badge-medium">MEDIUM</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#e3b341;min-width:26px">38</span>
+            <div class="score-bar"><div class="score-fill" style="width:38%;background:#e3b341"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">104.21.44.5</span><br><span class="geo-tag">United States (US)</span></td>
+        <td><span class="ip-code">198.51.100.110</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">SATELLITE</td>
+        <td>
+          <span class="mitre-id">T1041</span><br>
+          <span class="mitre-name">Exfiltration Over C2 Channel</span>
+        </td>
+        <td><span class="tactic-tag">Exfiltration</span></td>
+        <td style="font-size:12px">Exfiltration</td>
+        <td><span class="confidence-val">53%</span></td>
+        <td><span class="grp-badge">G10</span></td>
+        <td class="bluf-cell">[MEDIUM] Exfiltration activity from 104.21.44.5 (United States (US)) via TCP. MITRE T1041 (Exfiltration Over C2 Channel). Confidence: 53%.</td>
+      </tr>
+      <tr class="row-filtered">
+        <td style="color:#484f58;font-size:11px">15</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-004</td>
+        <td><span class="badge badge-filtered">FILTERED</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">100</span>
+            <div class="score-bar"><div class="score-fill" style="width:100%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">127.0.0.1</span><br><span class="geo-tag">Loopback</span></td>
+        <td><span class="ip-code">10.0.0.1</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">SIEM</td>
+        <td>
+          <span class="mitre-id"></span><br>
+          <span class="mitre-name"></span>
+        </td>
+        <td><span class="tactic-tag"></span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">0%</span></td>
+        <td><span class="grp-badge">G0</span></td>
+        <td class="bluf-cell">Filtered — false positive; no action required.</td>
+      </tr>
+      <tr class="row-filtered">
+        <td style="color:#484f58;font-size:11px">16</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-001</td>
+        <td><span class="badge badge-filtered">FILTERED</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#f85149;min-width:26px">85</span>
+            <div class="score-bar"><div class="score-fill" style="width:85%;background:#f85149"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">192.168.1.50</span><br><span class="geo-tag">Private Network</span></td>
+        <td><span class="ip-code">10.0.0.5</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">SIEM</td>
+        <td>
+          <span class="mitre-id"></span><br>
+          <span class="mitre-name"></span>
+        </td>
+        <td><span class="tactic-tag"></span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">0%</span></td>
+        <td><span class="grp-badge">G0</span></td>
+        <td class="bluf-cell">Filtered — false positive; no action required.</td>
+      </tr>
+      <tr class="row-filtered">
+        <td style="color:#484f58;font-size:11px">17</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-009</td>
+        <td><span class="badge badge-filtered">FILTERED</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#d29922;min-width:26px">60</span>
+            <div class="score-bar"><div class="score-fill" style="width:60%;background:#d29922"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">10.0.5.22</span><br><span class="geo-tag">Private Network</span></td>
+        <td><span class="ip-code">10.0.5.100</span></td>
+        <td style="font-family:monospace;font-size:12px">TCP</td>
+        <td style="font-size:12px;color:#8b949e">CYBER_SENSOR</td>
+        <td>
+          <span class="mitre-id"></span><br>
+          <span class="mitre-name"></span>
+        </td>
+        <td><span class="tactic-tag"></span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">0%</span></td>
+        <td><span class="grp-badge">G0</span></td>
+        <td class="bluf-cell">Filtered — false positive; no action required.</td>
+      </tr>
+      <tr class="row-filtered">
+        <td style="color:#484f58;font-size:11px">18</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-002</td>
+        <td><span class="badge badge-filtered">FILTERED</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#3fb950;min-width:26px">20</span>
+            <div class="score-bar"><div class="score-fill" style="width:20%;background:#3fb950"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">45.33.22.11</span><br><span class="geo-tag">United States (US)</span></td>
+        <td><span class="ip-code">203.0.113.10</span></td>
+        <td style="font-family:monospace;font-size:12px">UDP</td>
+        <td style="font-size:12px;color:#8b949e">SIEM</td>
+        <td>
+          <span class="mitre-id"></span><br>
+          <span class="mitre-name"></span>
+        </td>
+        <td><span class="tactic-tag"></span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">0%</span></td>
+        <td><span class="grp-badge">G0</span></td>
+        <td class="bluf-cell">Filtered — false positive; no action required.</td>
+      </tr>
+      <tr class="row-filtered">
+        <td style="color:#484f58;font-size:11px">19</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-010</td>
+        <td><span class="badge badge-filtered">FILTERED</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#3fb950;min-width:26px">18</span>
+            <div class="score-bar"><div class="score-fill" style="width:18%;background:#3fb950"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">45.155.205.33</span><br><span class="geo-tag">Ukraine (UA)</span></td>
+        <td><span class="ip-code">203.0.113.10</span></td>
+        <td style="font-family:monospace;font-size:12px">ICMP</td>
+        <td style="font-size:12px;color:#8b949e">CYBER_SENSOR</td>
+        <td>
+          <span class="mitre-id"></span><br>
+          <span class="mitre-name"></span>
+        </td>
+        <td><span class="tactic-tag"></span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">0%</span></td>
+        <td><span class="grp-badge">G0</span></td>
+        <td class="bluf-cell">Filtered — false positive; no action required.</td>
+      </tr>
+      <tr class="row-filtered">
+        <td style="color:#484f58;font-size:11px">20</td>
+        <td style="font-weight:600;color:#f0f6fc">ALT-019</td>
+        <td><span class="badge badge-filtered">FILTERED</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <span style="font-weight:700;color:#3fb950;min-width:26px">15</span>
+            <div class="score-bar"><div class="score-fill" style="width:15%;background:#3fb950"></div></div>
+          </div>
+        </td>
+        <td><span class="ip-code">192.168.50.12</span><br><span class="geo-tag">Private Network</span></td>
+        <td><span class="ip-code">10.10.0.1</span></td>
+        <td style="font-family:monospace;font-size:12px">UDP</td>
+        <td style="font-size:12px;color:#8b949e">SATELLITE</td>
+        <td>
+          <span class="mitre-id"></span><br>
+          <span class="mitre-name"></span>
+        </td>
+        <td><span class="tactic-tag"></span></td>
+        <td style="font-size:12px">Unknown</td>
+        <td><span class="confidence-val">0%</span></td>
+        <td><span class="grp-badge">G0</span></td>
+        <td class="bluf-cell">Filtered — false positive; no action required.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="footer">
+    Threat Intelligence Correlation &amp; Alert Prioritisation Assistant &mdash; Made with IBM Bob
+  </div>
+
+</div>
+</body>
+</html>

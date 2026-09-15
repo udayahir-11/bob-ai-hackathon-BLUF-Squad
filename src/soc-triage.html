@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D2 · Threat Correlation & BLUF Assistant</title>
+<style>
+  :root{
+    --bg: #0d1117;
+    --panel: #131a24;
+    --panel-raised: #182131;
+    --line: #26313f;
+    --text: #d7e0ea;
+    --text-dim: #8494a6;
+    --text-faint: #566072;
+    --amber: #e8a33d;
+    --red: #d9534f;
+    --red-deep: #7a2624;
+    --green: #4caf7d;
+    --blue: #4d8fd6;
+    --grey: #5c6b7a;
+    --mono: 'SF Mono', 'Consolas', 'Menlo', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    overflow:hidden;
+  }
+
+  /* ---------- Top bar ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 22px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#141c28,#101720);
+    flex-shrink:0;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:4px;
+    background:var(--panel-raised);
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-weight:700;font-size:13px;color:var(--amber);
+  }
+  .brand-text h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.2px;}
+  .brand-text p{margin:1px 0 0;font-size:11.5px;color:var(--text-dim);}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;}
+  button{
+    font-family:var(--sans);
+    font-size:12.5px;
+    padding:8px 13px;
+    border-radius:5px;
+    border:1px solid var(--line);
+    background:var(--panel-raised);
+    color:var(--text);
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  button:hover{border-color:var(--blue);}
+  button:focus-visible, [tabindex]:focus-visible, a:focus-visible{
+    outline:2px solid var(--blue); outline-offset:2px;
+  }
+  button.primary{background:#1c3a5e;border-color:#2c5687;}
+  button.primary:hover{background:#204368;}
+  button.danger{color:#f0b8b6;}
+
+  /* ---------- Layout ---------- */
+  .stage{
+    flex:1;
+    display:flex;
+    min-height:0;
+  }
+  .queue{
+    width:400px;
+    min-width:300px;
+    border-right:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    background:var(--panel);
+  }
+  .queue-controls{
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    gap:8px;
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:7px 4px;
+    font-size:11.5px;
+    border-radius:5px;
+    border:1px solid var(--line);
+    cursor:pointer;
+    color:var(--text-dim);
+    background:transparent;
+  }
+  .tab.active{background:var(--panel-raised);color:var(--text);border-color:var(--blue);}
+  .queue-list{flex:1;overflow-y:auto;}
+  .queue-empty{padding:40px 20px;text-align:center;color:var(--text-faint);font-size:13px;line-height:1.6;}
+
+  .incident-card{
+    padding:13px 15px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    border-left:3px solid transparent;
+  }
+  .incident-card:hover{background:var(--panel-raised);}
+  .incident-card.selected{background:var(--panel-raised);border-left-color:var(--blue);}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .card-title{font-size:13px;font-weight:600;color:var(--text);}
+  .priority-pill{
+    font-family:var(--mono);
+    font-size:11px;
+    font-weight:700;
+    padding:2px 7px;
+    border-radius:3px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .p-critical{background:rgba(217,83,79,.18);color:#f28b87;}
+  .p-high{background:rgba(232,163,61,.18);color:var(--amber);}
+  .p-medium{background:rgba(77,143,214,.18);color:#7db2e8;}
+  .p-low{background:rgba(140,150,160,.14);color:var(--text-dim);}
+  .card-meta{margin-top:5px;font-size:11.5px;color:var(--text-dim);}
+  .card-sources{margin-top:7px;display:flex;gap:5px;flex-wrap:wrap;}
+  .source-chip{
+    font-size:10px;
+    font-family:var(--mono);
+    padding:2px 6px;
+    border-radius:3px;
+    background:var(--bg);
+    border:1px solid var(--line);
+    color:var(--text-faint);
+  }
+  .fp-tag{font-size:10.5px;color:var(--text-faint);margin-top:6px;font-style:italic;}
+
+  /* ---------- Detail pane ---------- */
+  .detail{
+    flex:1;
+    overflow-y:auto;
+    padding:26px 34px 60px;
+  }
+  .detail-empty{
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--text-faint);
+    font-size:14px;
+    flex-direction:column;
+    gap:10px;
+    text-align:center;
+  }
+  .bluf-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    padding-bottom:18px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:20px;
+  }
+  .bluf-header h2{margin:0 0 6px;font-size:19px;font-weight:600;max-width:560px;line-height:1.35;}
+  .bluf-id{font-family:var(--mono);font-size:11.5px;color:var(--text-faint);}
+  .level-badge{
+    flex-shrink:0;
+    text-align:center;
+    padding:10px 16px;
+    border-radius:6px;
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:.4px;
+  }
+  .lvl-critical{background:rgba(217,83,79,.15);color:#f28b87;border:1px solid var(--red-deep);}
+  .lvl-high{background:rgba(232,163,61,.14);color:var(--amber);border:1px solid #7a5a24;}
+  .lvl-medium{background:rgba(77,143,214,.14);color:#7db2e8;border:1px solid #2c5687;}
+  .lvl-low{background:rgba(140,150,160,.1);color:var(--text-dim);border:1px solid var(--line);}
+
+  .bluf-line{
+    background:var(--panel-raised);
+    border:1px solid var(--line);
+    border-left:3px solid var(--blue);
+    border-radius:5px;
+    padding:16px 18px;
+    margin-bottom:24px;
+    font-size:14.5px;
+    line-height:1.55;
+  }
+  .bluf-line b{color:#fff;}
+
+  .section{margin-bottom:26px;}
+  .section h3{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.6px;
+    color:var(--text-dim);
+    margin:0 0 10px;
+    font-weight:600;
+  }
+  .evidence-list{list-style:none;margin:0;padding:0;}
+  .evidence-list li{
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+    font-size:13.5px;
+    line-height:1.5;
+    display:flex;
+    gap:10px;
+  }
+  .evidence-list li:last-child{border-bottom:none;}
+  .evidence-list .ev-src{
+    font-family:var(--mono);
+    font-size:10.5px;
+    color:var(--text-faint);
+    flex-shrink:0;
+    width:78px;
+    padding-top:2px;
+  }
+
+  .ttp-grid{display:flex;flex-wrap:wrap;gap:8px;}
+  .ttp-chip{
+    background:var(--panel-raised);
+    border:1px solid var(--line);
+    border-radius:5px;
+    padding:8px 12px;
+    font-size:12.5px;
+  }
+  .ttp-chip .tid{font-family:var(--mono);color:var(--amber);font-weight:700;margin-right:6px;}
+  .ttp-note{font-size:12px;color:var(--text-faint);margin-top:6px;}
+
+  .action-box{
+    background:rgba(76,175,125,.08);
+    border:1px solid #245c42;
+    border-radius:5px;
+    padding:14px 16px;
+    font-size:13.5px;
+    line-height:1.55;
+  }
+
+  .raw-toggle{
+    font-size:12px;
+    color:var(--blue);
+    cursor:pointer;
+    text-decoration:underline;
+    display:inline-block;
+    margin-top:6px;
+  }
+  .raw-table{
+    margin-top:10px;
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+  .raw-table th{
+    text-align:left;
+    font-weight:600;
+    color:var(--text-dim);
+    border-bottom:1px solid var(--line);
+    padding:6px 8px;
+  }
+  .raw-table td{
+    padding:6px 8px;
+    border-bottom:1px solid var(--line);
+    color:var(--text-dim);
+    font-family:var(--mono);
+    font-size:11.5px;
+  }
+
+  footer{
+    border-top:1px solid var(--line);
+    padding:8px 22px;
+    font-size:11px;
+    color:var(--text-faint);
+    flex-shrink:0;
+    display:flex;
+    justify-content:space-between;
+  }
+
+  @media (max-width: 760px){
+    .stage{flex-direction:column;}
+    .queue{width:100%;max-height:45vh;border-right:none;border-bottom:1px solid var(--line);}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">D2</div>
+    <div class="brand-text">
+      <h1>Threat Correlation &amp; BLUF Assistant</h1>
+      <p id="feedStatus">0 raw alerts ingested · 0 incidents</p>
+    </div>
+  </div>
+  <div class="toolbar">
+    <button id="loadSampleBtn" class="primary">Load sample feed</button>
+    <button id="injectBtn">Simulate new alerts</button>
+    <button id="clearBtn" class="danger">Clear all</button>
+  </div>
+</header>
+
+<div class="stage">
+  <div class="queue">
+    <div class="queue-controls" role="tablist" aria-label="Filter incidents">
+      <div class="tab active" data-filter="all" role="tab" tabindex="0">All</div>
+      <div class="tab" data-filter="genuine" role="tab" tabindex="0">Genuine</div>
+      <div class="tab" data-filter="false_positive" role="tab" tabindex="0">False positive</div>
+    </div>
+    <div class="queue-list" id="queueList">
+      <div class="queue-empty">No alerts yet.<br>Click "Load sample feed" to begin, or ingest your own feed via the button above.</div>
+    </div>
+  </div>
+
+  <div class="detail" id="detail">
+    <div class="detail-empty">
+      <div style="font-size:28px;">◈</div>
+      <div>Select an incident on the left to view its<br>prioritised BLUF investigation summary.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>All data in this session is local to your browser — nothing is sent anywhere. Refreshing the page clears it.</span>
+  <span id="clock"></span>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =====================================================================
+     1. MITRE ATT&CK LOOKUP (small local table — keyword → technique)
+     ===================================================================== */
+  var MITRE_MAP = [
+    { kw:["powershell","encoded command"], id:"T1059.001", name:"Command & Scripting: PowerShell" },
+    { kw:["phishing","malicious attachment","credential harvest"], id:"T1566", name:"Phishing" },
+    { kw:["c2 beacon","beaconing","command and control","callback"], id:"T1071", name:"Application Layer Protocol (C2)" },
+    { kw:["dns tunnel","dns exfil"], id:"T1071.004", name:"C2 over DNS" },
+    { kw:["lateral movement","rdp","smb admin share"], id:"T1021", name:"Remote Services (Lateral Movement)" },
+    { kw:["privilege escalation","token manipulation"], id:"T1068", name:"Exploitation for Privilege Escalation" },
+    { kw:["brute force","credential stuffing","password spray"], id:"T1110", name:"Brute Force" },
+    { kw:["exfiltration","large outbound transfer","data staged"], id:"T1041", name:"Exfiltration Over C2 Channel" },
+    { kw:["malware dropped","dropper","payload execution"], id:"T1204", name:"User Execution" },
+    { kw:["port scan","reconnaissance","enumeration"], id:"T1595", name:"Active Scanning" },
+    { kw:["ransomware","file encryption"], id:"T1486", name:"Data Encrypted for Impact" },
+    { kw:["log deletion","clear event log","defense evasion"], id:"T1070", name:"Indicator Removal" },
+    { kw:["valid account","unusual login","impossible travel"], id:"T1078", name:"Valid Accounts" },
+  ];
+  // Non-cyber (EW / physical) sources aren't covered by ATT&CK (Enterprise) — tag separately.
+  var EW_MAP = [
+    { kw:["gps spoof","navigation drift"], id:"EW-NAV-1", name:"Navigation Spoofing (non-ATT&CK, EW category)" },
+    { kw:["jamming","signal loss","link degradation"], id:"EW-JAM-1", name:"RF Jamming (non-ATT&CK, EW category)" },
+    { kw:["unauthorised uplink","orbit anomaly"], id:"EW-SAT-1", name:"Satellite Command Anomaly (non-ATT&CK, EW category)" },
+  ];
+
+  function mapTechniques(alerts){
+    var found = {};
+    alerts.forEach(function(a){
+      var text = (a.description + " " + a.type).toLowerCase();
+      MITRE_MAP.concat(EW_MAP).forEach(function(entry){
+        entry.kw.forEach(function(k){
+          if(text.indexOf(k) !== -1){ found[entry.id] = entry; }
+        });
+      });
+    });
+    return Object.keys(found).map(function(k){ return found[k]; });
+  }
+
+  /* =====================================================================
+     2. SAMPLE / MOCK ALERT GENERATOR
+     multi-source: siem, satellite, sensor, intel
+     ===================================================================== */
+  var KNOWN_BAD_INDICATORS = ["185.220.101.7","94.142.241.194","tor-exit-node-88.net","payload-drop-cdn.ru"];
+  var KNOWN_BENIGN_INDICATORS = ["10.0.4.22","10.0.4.23","print-server-internal","backup-job-svc"];
+
+  var SAMPLE_BATCHES = [
+    // ---- Incident A: genuine multi-source intrusion (should rank Critical) ----
+    [
+      { source:"SIEM", asset:"WKS-1187", indicator:"185.220.101.7", type:"C2 Beacon", description:"Repeated outbound C2 beacon to 185.220.101.7 every 60s from WKS-1187", severity:8 },
+      { source:"CyberSensor", asset:"WKS-1187", indicator:"185.220.101.7", type:"DNS Tunnel", description:"DNS tunneling pattern detected toward 185.220.101.7 domain infrastructure", severity:7 },
+      { source:"IntelReport", asset:"185.220.101.7", indicator:"185.220.101.7", type:"Known Bad IP", description:"OSINT feed flags 185.220.101.7 as active Tor exit node used in recent APT campaign", severity:9 },
+      { source:"SIEM", asset:"WKS-1187", indicator:"WKS-1187", type:"Privilege Escalation", description:"Token manipulation privilege escalation attempt on WKS-1187 following initial beacon", severity:8 },
+    ],
+    // ---- Incident B: brute force -> lateral movement (High) ----
+    [
+      { source:"SIEM", asset:"DC-02", indicator:"DC-02", type:"Brute Force", description:"Password spray brute force against DC-02 admin accounts, 400+ attempts in 10 min", severity:6 },
+      { source:"SIEM", asset:"DC-02", indicator:"DC-02", type:"Lateral Movement", description:"Successful RDP lateral movement to DC-02 following failed login burst", severity:7 },
+    ],
+    // ---- Incident C: satellite / EW anomaly correlated with cyber sensor (High, cross-domain) ----
+    [
+      { source:"Satellite", asset:"SAT-ORION-4", indicator:"SAT-ORION-4", type:"Signal Anomaly", description:"GPS spoof signature detected affecting SAT-ORION-4 downlink navigation channel", severity:7 },
+      { source:"CyberSensor", asset:"GND-STATION-2", indicator:"GND-STATION-2", type:"Unauthorised Uplink", description:"Unauthorised uplink command attempt logged at GND-STATION-2 during signal anomaly window", severity:8 },
+    ],
+    // ---- Incident D: isolated low-severity single-source (should be False Positive) ----
+    [
+      { source:"SIEM", asset:"WKS-0044", indicator:"10.0.4.22", type:"Port Scan", description:"Internal port scan detected from 10.0.4.22 (registered backup job service)", severity:2 },
+    ],
+    // ---- Incident E: isolated single-source medium alert, benign indicator (False Positive) ----
+    [
+      { source:"CyberSensor", asset:"print-server-internal", indicator:"print-server-internal", type:"Unusual Login", description:"Off-hours login to print-server-internal service account", severity:3 },
+    ],
+    // ---- Incident F: phishing + malware dropper correlated (Medium/High) ----
+    [
+      { source:"SIEM", asset:"WKS-2201", indicator:"payload-drop-cdn.ru", type:"Phishing", description:"User on WKS-2201 clicked malicious attachment link referencing payload-drop-cdn.ru", severity:5 },
+      { source:"IntelReport", asset:"payload-drop-cdn.ru", indicator:"payload-drop-cdn.ru", type:"Malware Dropped", description:"Threat intel confirms payload-drop-cdn.ru hosts known dropper payloads", severity:6 },
+    ],
+    // ---- Incident G: single unconfirmed sensor blip (Low / False positive) ----
+    [
+      { source:"Satellite", asset:"SAT-LYNX-1", indicator:"SAT-LYNX-1", type:"Signal Anomaly", description:"Brief link degradation on SAT-LYNX-1, resolved automatically after 4 seconds", severity:2 },
+    ],
+  ];
+
+  var EXTRA_INJECT_POOL = [
+    { source:"SIEM", asset:"WKS-3390", indicator:"94.142.241.194", type:"C2 Beacon", description:"New outbound beacon from WKS-3390 to known bad IP 94.142.241.194", severity:8 },
+    { source:"IntelReport", asset:"94.142.241.194", indicator:"94.142.241.194", type:"Known Bad IP", description:"94.142.241.194 added to active-campaign watchlist this week", severity:9 },
+    { source:"CyberSensor", asset:"WKS-3390", indicator:"WKS-3390", type:"Log Deletion", description:"Event log clearing observed on WKS-3390, likely defense evasion", severity:7 },
+    { source:"SIEM", asset:"10.0.4.23", indicator:"10.0.4.23", type:"Port Scan", description:"Routine scan from 10.0.4.23, a registered internal backup job service", severity:1 },
+    { source:"Satellite", asset:"SAT-ORION-4", indicator:"SAT-ORION-4", type:"Signal Anomaly", description:"Further orbit anomaly readings on SAT-ORION-4 downlink", severity:6 },
+    { source:"CyberSensor", asset:"GND-STATION-2", indicator:"GND-STATION-2", type:"Unauthorised Uplink", description:"Second unauthorised uplink attempt at GND-STATION-2, same signature as prior", severity:8 },
+    { source:"IntelReport", asset:"WKS-9981", indicator:"WKS-9981", type:"Valid Accounts", description:"Impossible-travel login flagged for user account tied to WKS-9981", severity:5 },
+  ];
+
+  /* =====================================================================
+     3. STATE
+     ===================================================================== */
+  var state = {
+    rawAlerts: [],   // flat list, each gets an id + timestamp
+    incidents: [],   // correlated clusters, computed on demand
+    filter: "all",
+    selectedId: null,
+    alertSeq: 0
+  };
+
+  function nowMinusMinutes(min){
+    return new Date(Date.now() - min*60000);
+  }
+
+  function addAlertBatch(batch, baseMinutesAgo){
+    batch.forEach(function(a, idx){
+      state.alertSeq++;
+      state.rawAlerts.push({
+        id: "AL-" + String(state.alertSeq).padStart(4,"0"),
+        source: a.source,
+        asset: a.asset,
+        indicator: a.indicator,
+        type: a.type,
+        description: a.description,
+        severity: a.severity,
+        timestamp: nowMinusMinutes(baseMinutesAgo - idx*0.4)
+      });
+    });
+  }
+
+  /* =====================================================================
+     4. CORRELATION ENGINE
+     Groups raw alerts into incidents by shared indicator (or asset) within
+     a rolling time window, then scores genuine-vs-false-positive and a
+     priority score.
+     ===================================================================== */
+  var CORRELATION_WINDOW_MIN = 120;
+
+  function correlate(){
+    var alerts = state.rawAlerts.slice().sort(function(a,b){ return a.timestamp - b.timestamp; });
+    var clusters = [];
+
+    alerts.forEach(function(alert){
+      var target = null;
+      for(var i=0;i<clusters.length;i++){
+        var c = clusters[i];
+        var sameKey = c.alerts.some(function(x){
+          return x.indicator === alert.indicator || x.asset === alert.asset;
+        });
+        var withinWindow = c.alerts.some(function(x){
+          return Math.abs(x.timestamp - alert.timestamp) / 60000 <= CORRELATION_WINDOW_MIN;
+        });
+        if(sameKey && withinWindow){ target = c; break; }
+      }
+      if(target){ target.alerts.push(alert); }
+      else { clusters.push({ id: null, alerts: [alert] }); }
+    });
+
+    return clusters.map(function(c, idx){
+      return buildIncident(c.alerts, idx);
+    }).sort(function(a,b){ return b.priorityScore - a.priorityScore; });
+  }
+
+  function buildIncident(alerts, idx){
+    var sources = uniq(alerts.map(function(a){ return a.source; }));
+    var maxSeverity = Math.max.apply(null, alerts.map(function(a){ return a.severity; }));
+    var avgSeverity = alerts.reduce(function(s,a){ return s+a.severity; },0) / alerts.length;
+    var hasKnownBad = alerts.some(function(a){ return KNOWN_BAD_INDICATORS.indexOf(a.indicator) !== -1; });
+    var hasKnownBenign = alerts.every(function(a){ return KNOWN_BENIGN_INDICATORS.indexOf(a.indicator) !== -1; });
+    var multiSource = sources.length >= 2;
+
+    // --- classification: genuine threat vs false positive ---
+    var isGenuine;
+    var fpReason = null;
+    if(hasKnownBenign && maxSeverity <= 3){
+      isGenuine = false;
+      fpReason = "Indicator matches a known/allow-listed internal asset and severity is low.";
+    } else if(!multiSource && maxSeverity <= 3){
+      isGenuine = false;
+      fpReason = "Single source only, low severity, no corroborating alert within " + CORRELATION_WINDOW_MIN + " min window.";
+    } else if(!multiSource && maxSeverity <= 5 && !hasKnownBad){
+      isGenuine = false;
+      fpReason = "Single source, moderate severity, but no threat-intel corroboration or known-bad indicator match.";
+    } else {
+      isGenuine = true;
+    }
+
+    // --- priority score 0-100 ---
+    var score = avgSeverity * 6;                      // severity baseline (up to ~54)
+    score += (sources.length - 1) * 14;                // corroboration bonus
+    if(hasKnownBad) score += 20;                       // matches threat intel
+    if(!isGenuine) score = Math.min(score, 25);        // cap false positives low
+    score = Math.max(0, Math.min(100, Math.round(score)));
+
+    var level;
+    if(!isGenuine) level = "low";
+    else if(score >= 75) level = "critical";
+    else if(score >= 55) level = "high";
+    else if(score >= 35) level = "medium";
+    else level = "low";
+
+    var techniques = mapTechniques(alerts);
+    var assets = uniq(alerts.map(function(a){ return a.asset; }));
+    var indicators = uniq(alerts.map(function(a){ return a.indicator; }));
+    var earliest = alerts.reduce(function(min,a){ return a.timestamp < min ? a.timestamp : min; }, alerts[0].timestamp);
+    var latest = alerts.reduce(function(max,a){ return a.timestamp > max ? a.timestamp : max; }, alerts[0].timestamp);
+
+    var title = alerts[alerts.length-1].type + " — " + assets.slice(0,2).join(", ") + (assets.length>2 ? " +" + (assets.length-2) + " more" : "");
+
+    return {
+      id: "INC-" + String(idx+1).padStart(3,"0") + "-" + indicators[0].replace(/[^a-zA-Z0-9]/g,"").slice(0,6),
+      title: title,
+      alerts: alerts,
+      sources: sources,
+      assets: assets,
+      indicators: indicators,
+      isGenuine: isGenuine,
+      fpReason: fpReason,
+      priorityScore: score,
+      level: level,
+      techniques: techniques,
+      earliest: earliest,
+      latest: latest,
+      maxSeverity: maxSeverity
+    };
+  }
+
+  function uniq(arr){ return arr.filter(function(v,i){ return arr.indexOf(v)===i; }); }
+
+  /* =====================================================================
+     5. BLUF GENERATION (template-based, no external calls)
+     ===================================================================== */
+  function levelLabel(l){
+    return { critical:"CRITICAL", high:"HIGH", medium:"MEDIUM", low:"LOW" }[l];
+  }
+
+  function generateBluf(inc){
+    var bottomLine;
+    if(!inc.isGenuine){
+      bottomLine = "Assessed as a <b>false positive</b>. " + inc.fpReason + " No further investigation recommended unless new corroborating activity appears.";
+    } else {
+      var assetStr = inc.assets.length === 1 ? inc.assets[0] : inc.assets.length + " assets (" + inc.assets.slice(0,3).join(", ") + (inc.assets.length>3?", …":"") + ")";
+      bottomLine = "<b>" + levelLabel(inc.level) + "</b> priority incident affecting " + assetStr + ", corroborated across <b>" + inc.sources.length + " independent source" + (inc.sources.length>1?"s":"") + "</b> (" + inc.sources.join(", ") + "). " +
+        (inc.techniques.length ? "Activity maps to " + inc.techniques.length + " known technique" + (inc.techniques.length>1?"s":"") + " (" + inc.techniques.map(function(t){return t.id;}).join(", ") + "). " : "") +
+        "Recommend " + (inc.level==="critical" ? "immediate" : inc.level==="high" ? "prompt" : "routine") + " analyst review.";
+    }
+
+    var recommendation;
+    if(!inc.isGenuine){
+      recommendation = "No action required. Optionally tune the detection rule that fired this alert to reduce future noise from this source/indicator.";
+    } else if(inc.level === "critical"){
+      recommendation = "Isolate affected asset(s) from the network immediately. Escalate to incident response lead. Block indicator(s) " + inc.indicators.join(", ") + " at the perimeter. Preserve logs for forensic review.";
+    } else if(inc.level === "high"){
+      recommendation = "Assign to an analyst for investigation within the current shift. Consider containment of affected asset(s): " + inc.assets.join(", ") + ". Monitor indicator(s) for further activity.";
+    } else {
+      recommendation = "Log for routine review. Re-evaluate if additional corroborating alerts arrive for the same asset or indicator.";
+    }
+
+    return { bottomLine: bottomLine, recommendation: recommendation };
+  }
+
+  /* =====================================================================
+     6. RENDERING
+     ===================================================================== */
+  var queueListEl = document.getElementById("queueList");
+  var detailEl = document.getElementById("detail");
+  var feedStatusEl = document.getElementById("feedStatus");
+
+  function fmtTime(d){
+    return d.toLocaleString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  }
+
+  function render(){
+    state.incidents = state.rawAlerts.length ? correlate() : [];
+    renderQueue();
+    renderDetail();
+    feedStatusEl.textContent = state.rawAlerts.length + " raw alerts ingested · " + state.incidents.length + " incidents";
+  }
+
+  function renderQueue(){
+    var filtered = state.incidents.filter(function(inc){
+      if(state.filter === "all") return true;
+      if(state.filter === "genuine") return inc.isGenuine;
+      if(state.filter === "false_positive") return !inc.isGenuine;
+      return true;
+    });
+
+    if(!filtered.length){
+      queueListEl.innerHTML = '<div class="queue-empty">' + (state.rawAlerts.length ? "No incidents match this filter." : 'No alerts yet.<br>Click "Load sample feed" to begin.') + '</div>';
+      return;
+    }
+
+    queueListEl.innerHTML = filtered.map(function(inc){
+      var pillClass = inc.isGenuine ? "p-" + inc.level : "p-low";
+      return '<div class="incident-card' + (inc.id===state.selectedId?' selected':'') + '" data-id="' + inc.id + '" tabindex="0" role="button" aria-pressed="' + (inc.id===state.selectedId) + '">' +
+        '<div class="card-top">' +
+          '<div class="card-title">' + escapeHtml(inc.title) + '</div>' +
+          '<div class="priority-pill ' + pillClass + '">' + (inc.isGenuine ? inc.priorityScore : "FP") + '</div>' +
+        '</div>' +
+        '<div class="card-meta">' + inc.alerts.length + ' alert' + (inc.alerts.length>1?'s':'') + ' · ' + fmtTime(inc.latest) + '</div>' +
+        '<div class="card-sources">' + inc.sources.map(function(s){ return '<span class="source-chip">' + s + '</span>'; }).join('') + '</div>' +
+        (!inc.isGenuine ? '<div class="fp-tag">Likely false positive</div>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  function renderDetail(){
+    var inc = state.incidents.find(function(i){ return i.id === state.selectedId; });
+    if(!inc){
+      detailEl.innerHTML = '<div class="detail-empty"><div style="font-size:28px;">◈</div><div>Select an incident on the left to view its<br>prioritised BLUF investigation summary.</div></div>';
+      return;
+    }
+    var bluf = generateBluf(inc);
+    var levelClass = inc.isGenuine ? "lvl-" + inc.level : "lvl-low";
+    var levelText = inc.isGenuine ? levelLabel(inc.level) : "FALSE POSITIVE";
+
+    var evidenceItems = inc.alerts.map(function(a){
+      return '<li><span class="ev-src">' + a.source + '</span><span>' + escapeHtml(a.description) + ' <span style="color:var(--text-faint);">(' + fmtTime(a.timestamp) + ')</span></span></li>';
+    }).join('');
+
+    var ttpChips = inc.techniques.length
+      ? inc.techniques.map(function(t){ return '<div class="ttp-chip"><span class="tid">' + t.id + '</span>' + t.name + '</div>'; }).join('')
+      : '<div class="ttp-note">No ATT&amp;CK technique keywords matched this incident\u2019s alert text.</div>';
+
+    detailEl.innerHTML =
+      '<div class="bluf-header">' +
+        '<div><h2>' + escapeHtml(inc.title) + '</h2><div class="bluf-id">' + inc.id + ' · window ' + fmtTime(inc.earliest) + ' – ' + fmtTime(inc.latest) + '</div></div>' +
+        '<div class="level-badge ' + levelClass + '">' + levelText + '</div>' +
+      '</div>' +
+
+      '<div class="bluf-line">' + bluf.bottomLine + '</div>' +
+
+      '<div class="section"><h3>Key evidence</h3><ul class="evidence-list">' + evidenceItems + '</ul></div>' +
+
+      '<div class="section"><h3>MITRE ATT&amp;CK mapping</h3><div class="ttp-grid">' + ttpChips + '</div></div>' +
+
+      '<div class="section"><h3>Recommended action</h3><div class="action-box">' + bluf.recommendation + '</div></div>' +
+
+      '<div class="section"><span class="raw-toggle" id="rawToggle">Show underlying raw alerts (' + inc.alerts.length + ')</span>' +
+        '<table class="raw-table" id="rawTable" style="display:none;">' +
+          '<thead><tr><th>ID</th><th>Source</th><th>Asset</th><th>Indicator</th><th>Severity</th><th>Time</th></tr></thead>' +
+          '<tbody>' + inc.alerts.map(function(a){
+            return '<tr><td>' + a.id + '</td><td>' + a.source + '</td><td>' + escapeHtml(a.asset) + '</td><td>' + escapeHtml(a.indicator) + '</td><td>' + a.severity + '/10</td><td>' + fmtTime(a.timestamp) + '</td></tr>';
+          }).join('') +
+          '</tbody>' +
+        '</table>' +
+      '</div>';
+
+    var toggle = document.getElementById("rawToggle");
+    var table = document.getElementById("rawTable");
+    toggle.addEventListener("click", function(){
+      var showing = table.style.display !== "none";
+      table.style.display = showing ? "none" : "table";
+      toggle.textContent = (showing ? "Show" : "Hide") + " underlying raw alerts (" + inc.alerts.length + ")";
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+
+  /* =====================================================================
+     7. EVENT WIRING
+     ===================================================================== */
+  document.getElementById("loadSampleBtn").addEventListener("click", function(){
+    state.rawAlerts = [];
+    state.selectedId = null;
+    SAMPLE_BATCHES.forEach(function(batch, i){
+      addAlertBatch(batch, 90 - i*7); // stagger timestamps across the last ~90 min
+    });
+    render();
+  });
+
+  document.getElementById("injectBtn").addEventListener("click", function(){
+    // simulate a fresh wave of alerts arriving "now"
+    var pick = [];
+    var count = 2 + Math.floor(Math.random()*3);
+    for(var i=0;i<count;i++){
+      pick.push(EXTRA_INJECT_POOL[Math.floor(Math.random()*EXTRA_INJECT_POOL.length)]);
+    }
+    addAlertBatch(pick, 1);
+    render();
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", function(){
+    state.rawAlerts = [];
+    state.incidents = [];
+    state.selectedId = null;
+    render();
+  });
+
+  queueListEl.addEventListener("click", function(e){
+    var card = e.target.closest(".incident-card");
+    if(!card) return;
+    state.selectedId = card.getAttribute("data-id");
+    render();
+  });
+  queueListEl.addEventListener("keydown", function(e){
+    if(e.key !== "Enter" && e.key !== " ") return;
+    var card = e.target.closest(".incident-card");
+    if(!card) return;
+    e.preventDefault();
+    state.selectedId = card.getAttribute("data-id");
+    render();
+  });
+
+  document.querySelectorAll(".tab").forEach(function(tab){
+    tab.addEventListener("click", function(){
+      document.querySelectorAll(".tab").forEach(function(t){ t.classList.remove("active"); });
+      tab.classList.add("active");
+      state.filter = tab.getAttribute("data-filter");
+      renderQueue();
+    });
+    tab.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); tab.click(); }
+    });
+  });
+
+  function tickClock(){
+    document.getElementById("clock").textContent = new Date().toLocaleTimeString();
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  render();
+})();
+</script>
+</body>
+</html>
